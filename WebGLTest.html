@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>WebGL Stress Test</title>
+  <meta name="viewport" content="width=1280, height=800, initial-scale=1.0, user-scalable=no" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+      width: 1280px;
+      height: 800px;
+    }
+    canvas {
+      display: block;
+    }
+    #fps {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: #0ff;
+      font-family: monospace;
+      font-size: 16px;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div id="fps">FPS: --</div>
+  <canvas id="glcanvas" width="1280" height="800"></canvas>
+
+  <script>
+    const canvas = document.getElementById("glcanvas");
+    const gl = canvas.getContext("webgl");
+
+    if (!gl) {
+      alert("WebGL not supported");
+    }
+
+    // Vertex shader
+    const vsSource = `
+      attribute vec4 aVertexPosition;
+      uniform mat4 uModelViewMatrix;
+      uniform mat4 uProjectionMatrix;
+      void main(void) {
+        gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+      }
+    `;
+
+    // Fragment shader
+    const fsSource = `
+      void main(void) {
+        gl_FragColor = vec4(0.0, 1.0, 1.0, 1.0);
+      }
+    `;
+
+    function loadShader(type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      return shader;
+    }
+
+    const vertexShader = loadShader(gl.VERTEX_SHADER, vsSource);
+    const fragmentShader = loadShader(gl.FRAGMENT_SHADER, fsSource);
+
+    const shaderProgram = gl.createProgram();
+    gl.attachShader(shaderProgram, vertexShader);
+    gl.attachShader(shaderProgram, fragmentShader);
+    gl.linkProgram(shaderProgram);
+    gl.useProgram(shaderProgram);
+
+    const programInfo = {
+      attribLocations: {
+        vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+      },
+      uniformLocations: {
+        projectionMatrix: gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
+        modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
+      },
+    };
+
+    // Cube vertices
+    const positions = [
+      -1, -1,  1,  1, -1,  1,  1,  1,  1, -1,  1,  1,
+      -1, -1, -1, -1,  1, -1,  1,  1, -1,  1, -1, -1,
+      -1,  1, -1, -1,  1,  1,  1,  1,  1,  1,  1, -1,
+      -1, -1, -1,  1, -1, -1,  1, -1,  1, -1, -1,  1,
+       1, -1, -1,  1,  1, -1,  1,  1,  1,  1, -1,  1,
+      -1, -1, -1, -1, -1,  1, -1,  1,  1, -1,  1, -1,
+    ];
+
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+    function drawScene(gl, programInfo, buffer, rotation) {
+      gl.clearColor(0, 0, 0, 1);
+      gl.clearDepth(1.0);
+      gl.enable(gl.DEPTH_TEST);
+      gl.depthFunc(gl.LEQUAL);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+      const fieldOfView = 45 * Math.PI / 180;
+      const aspect = 1280 / 800;
+      const zNear = 0.1;
+      const zFar = 100.0;
+      const projectionMatrix = mat4.create();
+      mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar);
+
+      const modelViewMatrix = mat4.create();
+      mat4.translate(modelViewMatrix, modelViewMatrix, [-0.0, 0.0, -6.0]);
+      mat4.rotate(modelViewMatrix, modelViewMatrix, rotation, [0, 1, 0]);
+      mat4.rotate(modelViewMatrix, modelViewMatrix, rotation * 0.7, [1, 0, 0]);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.vertexAttribPointer(programInfo.attribLocations.vertexPosition, 3, gl.FLOAT, false, 0, 0);
+      gl.enableVertexAttribArray(programInfo.attribLocations.vertexPosition);
+
+      gl.uniformMatrix4fv(programInfo.uniformLocations.projectionMatrix, false, projectionMatrix);
+      gl.uniformMatrix4fv(programInfo.uniformLocations.modelViewMatrix, false, modelViewMatrix);
+
+      gl.drawArrays(gl.TRIANGLES, 0, 36);
+    }
+
+    let then = 0;
+    let frameCount = 0;
+    let fps = 0;
+    let lastFpsUpdate = 0;
+
+    function render(now) {
+      now *= 0.001;
+      const deltaTime = now - then;
+      then = now;
+
+      drawScene(gl, programInfo, positionBuffer, now);
+
+      frameCount++;
+      if (now - lastFpsUpdate >= 1) {
+        fps = frameCount;
+        document.getElementById("fps").textContent = `FPS: ${fps}`;
+        frameCount = 0;
+        lastFpsUpdate = now;
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    requestAnimationFrame(render);
+  </script>
+
+  <!-- Matrix library -->
+  <script src="https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/gl-matrix-min.js"></script>
+</body>
+</html>
