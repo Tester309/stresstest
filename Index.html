@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SM-T290 Stress Test</title>
+  <meta name="viewport" content="width=1280, height=800, initial-scale=1.0, user-scalable=no" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+      width: 1280px;
+      height: 800px;
+    }
+    canvas {
+      display: block;
+    }
+    #fps {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: #0ff;
+      font-family: monospace;
+      font-size: 16px;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <div id="fps">FPS: --</div>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
+
+  <script>
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+
+    const camera = new THREE.PerspectiveCamera(70, 1280 / 800, 0.1, 1000);
+    camera.position.z = 50;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: false });
+    renderer.setSize(1280, 800);
+    document.body.appendChild(renderer.domElement);
+
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    let cubes = [];
+
+    for (let i = 0; i < 500; i++) {
+      const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+      const cube = new THREE.Mesh(geometry, material);
+      cube.position.set(
+        (Math.random() - 0.5) * 100,
+        (Math.random() - 0.5) * 100,
+        (Math.random() - 0.5) * 100
+      );
+      scene.add(cube);
+      cubes.push(cube);
+    }
+
+    let lastTime = performance.now();
+    let frameCount = 0;
+    let fps = 0;
+    let lowFpsCount = 0;
+    let rotationEnabled = true;
+
+    function optimizeScene() {
+      if (cubes.length > 50) {
+        const removeCount = Math.floor(cubes.length * 0.1);
+        for (let i = 0; i < removeCount; i++) {
+          const cube = cubes.pop();
+          scene.remove(cube);
+        }
+      }
+      cubes.forEach(cube => {
+        cube.material = new THREE.MeshBasicMaterial({ color: cube.material.color });
+      });
+      if (fps < 30) rotationEnabled = false;
+    }
+
+    function animate() {
+      const now = performance.now();
+      frameCount++;
+      if (now - lastTime >= 1000) {
+        fps = frameCount;
+        document.getElementById("fps").textContent = `FPS: ${fps}`;
+        frameCount = 0;
+        lastTime = now;
+
+        if (fps < 60) {
+          lowFpsCount++;
+          if (lowFpsCount >= 3) {
+            optimizeScene();
+            lowFpsCount = 0;
+          }
+        } else {
+          lowFpsCount = 0;
+        }
+      }
+
+      if (rotationEnabled) {
+        cubes.forEach(cube => {
+          cube.rotation.x += 0.01;
+          cube.rotation.y += 0.01;
+        });
+      }
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
